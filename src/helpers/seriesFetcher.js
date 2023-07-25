@@ -119,8 +119,8 @@ export function parseEpisodes(raw, seasonId) {
         plot,
         publishedDate,
         rating: {
-          count,
-          star,
+          count: isNaN(count) ? 0 : count,
+          star: isNaN(star) ? 0 : star,
         },
       };
     } catch (ss) {
