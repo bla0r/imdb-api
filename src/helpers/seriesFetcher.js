@@ -76,8 +76,8 @@ export function parseEpisodes(raw, seasonId) {
   const episodes = Array.from(itemNodes).map((node, index) => {
     try {
       const imageElement = node.getElementsByTagName("img")[0];
-      const image = imageElement?.getAttribute("src") || null;
-      const image_large = image?.replace(/[.]_.*_[.]/, ".") || null;
+      let image = imageElement?.getAttribute("src") || null;
+      let image_large = image?.replace(/[.]_.*_[.]/, ".") || null;
 
       const noStr = `S${seasonId}, Ep${index + 1}`;
 
@@ -93,7 +93,7 @@ export function parseEpisodes(raw, seasonId) {
       );
 
       const plotElement = node.getElementsByTagName("div");
-      const plot = entityDecoder(
+      let plot = entityDecoder(
         Array.from(plotElement)
           .find((t) => t.getAttribute("itemprop") === "description")
           ?.textContent.trim() || "",
