@@ -106,6 +106,15 @@ export function parseEpisodes(raw, seasonId) {
       const countElement = node.getElementsByClassName("ipl-rating-star__total-votes")[0];
       const count = parseInt((countElement?.textContent.trim() || "0").replace(/[(]|[)]|,|[.]/g, ""), 10);
 
+      if (image?.includes(`spinning-progress.gif`)) {
+        image = null;
+        image_large = null;
+      }
+
+      if (plot.includes("Know what this is about")) {
+       plot = null;
+      }
+      
       return {
         idx: index + 1,
         no: noStr,
