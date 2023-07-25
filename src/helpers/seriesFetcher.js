@@ -5,148 +5,112 @@ import apiRequestRawHtml from "./apiRequestRawHtml";
 const MAX_SEASONS = 2;
 
 export default async function seriesFetcher(id) {
-  let allSeasons = [];
-  let seasons = [];
-
   try {
-    let parser = new DomParser();
-    let rawHtml = await apiRequestRawHtml(
+    const parser = new DomParser();
+    const rawHtml = await apiRequestRawHtml(
       `https://www.imdb.com/title/${id}/episodes/_ajax`
     );
-    let dom = parser.parseFromString(rawHtml);
+    const dom = parser.parseFromString(rawHtml);
 
-    let seasonOption = dom.getElementById("bySeason");
-    let seasonOptions = seasonOption.getElementsByTagName("option");
-    for (let i = 0; i < seasonOptions.length; i++) {
-      try {
-        const seasonId = seasonOptions[i].getAttribute("value");
-        let season = {
-          id: seasonId,
-          api_path: `/title/${id}/season/${seasonId}`,
-          isSelected: seasonOptions[i].getAttribute("selected") === "selected",
-          name: "",
-          episodes: [],
-        };
-        seasons.push(season);
-      } catch (_) {}
-    }
+    const seasonOption = dom.getElementById("bySeason");
+    const seasonOptions = seasonOption.getElementsByTagName("option");
+    const allSeasons = Array.from(seasonOptions).map((option) => ({
+      id: option.getAttribute("value"),
+      name: `Season ${option.getAttribute("value")}`,
+      api_path: `/title/${id}/season/${option.getAttribute("value")}`,
+    }));
 
-    allSeasons = [...seasons];
-    seasons = seasons.reverse();
-    seasons = seasons.slice(0, MAX_SEASONS);
+    const selectedSeasons = Array.from(seasonOptions)
+      .filter((option) => option.getAttribute("selected") === "selected")
+      .map((option) => ({
+        id: option.getAttribute("value"),
+        api_path: `/title/${id}/season/${option.getAttribute("value")}`,
+      }));
 
-    await Promise.all(
-      seasons.map(async (season) => {
+    const seasons = await Promise.all(
+      selectedSeasons.map(async (season) => {
         try {
-          let html = "";
-          if (season.isSelected) {
-            html = rawHtml;
-          } else {
+          let html = rawHtml;
+          if (!season.isSelected) {
             html = await apiRequestRawHtml(
               `https://www.imdb.com/title/${id}/episodes/_ajax?season=${season.id}`
             );
           }
 
-          let parsed = parseEpisodes(html, season.id);
-          season.name = parsed.name;
-          season.episodes = parsed.episodes;
+          const parsed = parseEpisodes(html, season.id);
+          return {
+            ...season,
+            name: parsed.name,
+            episodes: parsed.episodes,
+          };
         } catch (sfe) {
-          season.error = sfe.toString();
+          return { ...season, error: sfe.toString() };
         }
       })
     );
 
-    seasons = seasons.filter((s) => s.episodes.length);
-    seasons = seasons.map((s) => {
-      delete s.isSelected;
-      return s;
+    const filteredSeasons = seasons.filter((s) => s.episodes.length).map((s) => {
+      const { isSelected, ...rest } = s;
+      return rest;
     });
-  } catch (error) {}
 
-  return {
-    all_seasons: allSeasons.map((s) => ({
-      id: s.id,
-      name: `Season ${s.id}`,
-      api_path: `/title/${id}/season/${s.id}`,
-    })),
-    seasons,
-  };
+    return {
+      all_seasons: allSeasons,
+      seasons: filteredSeasons.slice(-MAX_SEASONS),
+    };
+  } catch (error) {
+    // Handle the error here
+    console.error("Error occurred while fetching series:", error);
+    return { all_seasons: [], seasons: [] };
+  }
 }
 
 export function parseEpisodes(raw, seasonId) {
-  let parser = new DomParser();
-  let dom = parser.parseFromString(raw);
+  const parser = new DomParser();
+  const dom = parser.parseFromString(raw);
 
-  let name = dom.getElementById("episode_top").textContent.trim();
-  name = entityDecoder(name, { level: "html5" });
+  const nameElement = dom.getElementById("episode_top");
+  const name = entityDecoder(nameElement.textContent.trim(), { level: "html5" });
 
-  let episodes = [];
-
-  let item = dom.getElementsByClassName("list_item");
-
-  item.forEach((node, index) => {
+  const itemNodes = dom.getElementsByClassName("list_item");
+  const episodes = Array.from(itemNodes).map((node, index) => {
     try {
-      let image = null;
-      let image_large = null;
-      try {
-        image = node.getElementsByTagName("img")[0];
-        image = image.getAttribute("src");
-        image_large = image.replace(/[.]_.*_[.]/, ".");
-      } catch (_) {}
+      const imageElement = node.getElementsByTagName("img")[0];
+      const image = imageElement?.getAttribute("src") || null;
+      const image_large = image?.replace(/[.]_.*_[.]/, ".") || null;
 
-      let noStr = null;
-      try {
-        // noStr = node.getElementsByClassName("image")[0].textContent.trim();
-        noStr = `S${seasonId}, Ep${index + 1}`;
-      } catch (_) {}
+      const noStr = `S${seasonId}, Ep${index + 1}`;
 
-      let publishedDate = null;
-      try {
-        publishedDate = node
-          .getElementsByClassName("airdate")[0]
-          .textContent.trim();
-      } catch (_) {}
+      const publishedDateElement = node.getElementsByClassName("airdate")[0];
+      const publishedDate = publishedDateElement?.textContent.trim() || null;
 
-      let title = null;
-      try {
-        title = node.getElementsByTagName("a");
-        title = title.find((t) => t.getAttribute("itemprop") === "name");
-        title = title.textContent.trim();
-        title = entityDecoder(title, { level: "html5" });
-      } catch (_) {}
+      const titleElement = node.getElementsByTagName("a");
+      const title = entityDecoder(
+        Array.from(titleElement)
+          .find((t) => t.getAttribute("itemprop") === "name")
+          ?.textContent.trim() || "",
+        { level: "html5" }
+      );
 
-      let plot = null;
-      try {
-        plot = node.getElementsByTagName("div");
-        plot = plot.find((t) => t.getAttribute("itemprop") === "description");
-        plot = plot.textContent.trim();
-        plot = entityDecoder(plot, { level: "html5" });
-      } catch (_) {}
+      const plotElement = node.getElementsByTagName("div");
+      const plot = entityDecoder(
+        Array.from(plotElement)
+          .find((t) => t.getAttribute("itemprop") === "description")
+          ?.textContent.trim() || "",
+        { level: "html5" }
+      );
 
-      let star = 0;
-      try {
-        star = node
-          .getElementsByClassName("ipl-rating-star__rating")[0]
-          .textContent.trim();
-        star = parseFloat(star);
-      } catch (_) {}
+      const starElement = node.getElementsByClassName("ipl-rating-star__rating")[0];
+      const star = parseFloat(starElement?.textContent.trim() || "0");
 
-      let count = 0;
-      try {
-        count = node
-          .getElementsByClassName("ipl-rating-star__total-votes")[0]
-          .textContent.trim();
-        count = count.replace(/[(]|[)]|,|[.]/g, "");
-        count = parseInt(count);
-      } catch (_) {}
+      const countElement = node.getElementsByClassName("ipl-rating-star__total-votes")[0];
+      const count = parseInt((countElement?.textContent.trim() || "0").replace(/[(]|[)]|,|[.]/g, ""), 10);
 
-      if (
-        image.includes(`spinning-progress.gif`) &&
-        plot.includes("Know what this is about")
-      )
+      if (image?.includes(`spinning-progress.gif`) && plot.includes("Know what this is about")) {
         return null;
+      }
 
-      episodes.push({
+      return {
         idx: index + 1,
         no: noStr,
         title,
@@ -158,14 +122,15 @@ export function parseEpisodes(raw, seasonId) {
           count,
           star,
         },
-      });
+      };
     } catch (ss) {
       console.log(ss.message);
+      return null;
     }
   });
 
   return {
-    name: name,
-    episodes: episodes,
+    name,
+    episodes: episodes.filter((ep) => ep !== null),
   };
 }
