@@ -85,12 +85,7 @@ export function parseEpisodes(raw, seasonId) {
       const publishedDate = publishedDateElement?.textContent.trim() || null;
 
       const titleElement = node.getElementsByTagName("a");
-      const episodeid = entityDecoder(
-          Array.from(titleElement)
-              .find((t) => t.getAttribute("href"))
-              ?.textContent.trim() || "",
-          { level: "html5" }
-      );
+      const episodeid = node.getAttribute("data-tconst");
 
       const title = entityDecoder(
         Array.from(titleElement)
