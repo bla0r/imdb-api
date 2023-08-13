@@ -93,6 +93,12 @@ export function parseEpisodes(raw, seasonId) {
       );
 
       const plotElement = node.getElementsByTagName("div");
+      let episodeid = entityDecoder(
+          Array.from(plotElement)
+              .find((t) => t.getAttribute("data-const"))
+              ?.textContent.trim() || "",
+          { level: "html5" }
+      );
       let plot = entityDecoder(
         Array.from(plotElement)
           .find((t) => t.getAttribute("itemprop") === "description")
@@ -118,6 +124,7 @@ export function parseEpisodes(raw, seasonId) {
       return {
         idx: index + 1,
         no: noStr,
+        id: episodeid,
         title,
         image,
         image_large,
